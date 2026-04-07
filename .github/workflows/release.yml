@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install aarch64 cross-compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Read module identity
+        id: module
+        run: |
+          echo "id=$(python3 -c 'import json; print(json.load(open("src/module.json"))["id"])')" >> "$GITHUB_OUTPUT"
+          echo "version=$(python3 -c 'import json; print(json.load(open("src/module.json"))["version"])')" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: make test
+
+      - name: Build for aarch64
+        run: ./scripts/build.sh native
+
+      - name: Package module
+        run: |
+          chmod +x scripts/package.sh
+          ./scripts/package.sh
+
+      - name: Create GitHub release and upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ steps.module.outputs.id }}-module.tar.gz
+
+      - name: Update release.json on main
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ID="${{ steps.module.outputs.id }}"
+          VERSION="${{ steps.module.outputs.version }}"
+          REPO="${{ github.repository }}"
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ID}-module.tar.gz"
+
+          cat > release.json <<EOF
+          {
+            "version": "${VERSION}",
+            "download_url": "${DOWNLOAD_URL}"
+          }
+          EOF
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git add release.json
+          git diff --staged --quiet || git commit -m "Update release.json for ${TAG}"
+          git push origin main

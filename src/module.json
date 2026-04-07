@@ -1,0 +1,237 @@
+{
+  "id": "markov_groove",
+  "name": "MarkovGroove",
+  "abbrev": "MG",
+  "version": "0.1.0",
+  "description": "Markov-chain melodic sequencer with swing groove, synced to Move transport.",
+  "dsp": "dsp.so",
+  "api_version": 1,
+
+  "capabilities": {
+    "audio_out": false,
+    "audio_in": false,
+    "midi_in": true,
+    "midi_out": true,
+    "chainable": true,
+    "component_type": "midi_fx",
+    "ui_hierarchy": {
+      "levels": {
+        "root": {
+          "name": "MarkovGroove",
+          "knobs": ["root", "scale", "range", "spread", "density", "chaos", "resolve", "rest"],
+          "params": ["root", "scale", "range", "spread", "density", "chaos", "resolve", "swing", "steps", "rest", "vel", "gate"]
+        }
+      }
+    }
+  },
+
+  "parameters": [
+    {
+      "key": "root",
+      "name": "Root",
+      "type": "int",
+      "min": -24,
+      "max": 24,
+      "default": 0,
+      "step": 1
+    },
+    {
+      "key": "scale",
+      "name": "Scale",
+      "type": "enum",
+      "options": ["ionian", "aeolian", "dorian", "mixolydian", "major_pent", "minor_pent", "suspended", "power", "phrygian", "lydian", "harmonic_minor", "blues"],
+      "default": "ionian"
+    },
+    {
+      "key": "range",
+      "name": "Range",
+      "type": "enum",
+      "options": ["close", "octave", "wide"],
+      "default": "close"
+    },
+    {
+      "key": "spread",
+      "name": "Spread",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "density",
+      "name": "Density",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 1.0,
+      "step": 0.01
+    },
+    {
+      "key": "chaos",
+      "name": "Chaos",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.3,
+      "step": 0.01
+    },
+    {
+      "key": "resolve",
+      "name": "Resolve",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "swing",
+      "name": "Swing",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "steps",
+      "name": "Steps",
+      "type": "enum",
+      "options": ["4", "8", "16"],
+      "default": "16"
+    },
+    {
+      "key": "rest",
+      "name": "Rest",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "gate",
+      "name": "Gate",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "step": 0.01
+    },
+    {
+      "key": "vel",
+      "name": "Vel",
+      "type": "int",
+      "min": 20,
+      "max": 127,
+      "default": 90,
+      "step": 1
+    }
+  ],
+
+  "chain_params": [
+    {
+      "key": "root",
+      "name": "Root",
+      "type": "int",
+      "min": -24,
+      "max": 24,
+      "default": 0,
+      "step": 1
+    },
+    {
+      "key": "scale",
+      "name": "Scale",
+      "type": "enum",
+      "options": ["ionian", "aeolian", "dorian", "mixolydian", "major_pent", "minor_pent", "suspended", "power", "phrygian", "lydian", "harmonic_minor", "blues"],
+      "default": "ionian"
+    },
+    {
+      "key": "range",
+      "name": "Range",
+      "type": "enum",
+      "options": ["close", "octave", "wide"],
+      "default": "close"
+    },
+    {
+      "key": "spread",
+      "name": "Spread",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "density",
+      "name": "Density",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 1.0,
+      "step": 0.01
+    },
+    {
+      "key": "chaos",
+      "name": "Chaos",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.3,
+      "step": 0.01
+    },
+    {
+      "key": "resolve",
+      "name": "Resolve",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "swing",
+      "name": "Swing",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "steps",
+      "name": "Steps",
+      "type": "enum",
+      "options": ["4", "8", "16"],
+      "default": "16"
+    },
+    {
+      "key": "rest",
+      "name": "Rest",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.0,
+      "step": 0.01
+    },
+    {
+      "key": "gate",
+      "name": "Gate",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "step": 0.01
+    },
+    {
+      "key": "vel",
+      "name": "Vel",
+      "type": "int",
+      "min": 20,
+      "max": 127,
+      "default": 90,
+      "step": 1
+    }
+  ]
+}
