@@ -1,11 +1,12 @@
 {
   "id": "markov_groove",
   "name": "MarkovGroove",
-  "abbrev": "MG",
-  "version": "0.1.0",
+  "abbrev": "MGRV",
+  "version": "0.1.1",
   "description": "Markov-chain melodic sequencer with swing groove, synced to Move transport.",
+  "author": "Schwung",
   "dsp": "dsp.so",
-  "api_version": 1,
+  "api_version": 2,
 
   "capabilities": {
     "audio_out": false,

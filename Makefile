@@ -22,9 +22,14 @@ HOST_SRCS := $(wildcard src/host/*_plugin.c)
 ALL_SRCS  := $(DSP_SRCS) $(HOST_SRCS)
 
 # --- Test discovery -----------------------------------------------------------
+# Engine tests link DSP sources only (no Schwung headers needed).
+# MIDI FX tests link all sources (engine + host wrapper).
 
-TEST_SRCS := $(wildcard tests/*_test.c)
-TEST_BINS := $(patsubst tests/%.c, build/tests/%, $(TEST_SRCS))
+TEST_ENGINE_SRCS := $(wildcard tests/*_engine_test.c)
+TEST_MIDI_SRCS   := $(wildcard tests/*_midi_fx_test.c)
+TEST_ENGINE_BINS := $(patsubst tests/%.c, build/tests/%, $(TEST_ENGINE_SRCS))
+TEST_MIDI_BINS   := $(patsubst tests/%.c, build/tests/%, $(TEST_MIDI_SRCS))
+TEST_BINS        := $(TEST_ENGINE_BINS) $(TEST_MIDI_BINS)
 
 # --- Build directories --------------------------------------------------------
 
@@ -53,8 +58,11 @@ test: $(TEST_BINS)
 		echo "$$failed test(s) FAILED."; exit 1; \
 	fi
 
-build/tests/%: tests/%.c $(ALL_SRCS)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< $(ALL_SRCS)
+build/tests/%_engine_test: tests/%_engine_test.c $(DSP_SRCS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< $(DSP_SRCS) -lm
+
+build/tests/%_midi_fx_test: tests/%_midi_fx_test.c $(ALL_SRCS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< $(ALL_SRCS) -lm
 
 # --- Native dsp.so ------------------------------------------------------------
 
@@ -85,7 +93,7 @@ endif
 
 check-symbols: build/native/dsp.so
 	@echo "Checking for move_midi_fx_init..."
-	@nm -D build/native/dsp.so | grep -q "move_midi_fx_init" && \
+	@nm build/native/dsp.so | grep -q "move_midi_fx_init" && \
 		echo "  OK: move_midi_fx_init found" || \
 		(echo "  FAIL: move_midi_fx_init NOT found"; exit 1)
 

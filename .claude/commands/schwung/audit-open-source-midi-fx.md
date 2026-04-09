@@ -3,165 +3,158 @@
 ## Purpose
 Use this skill to evaluate whether an open-source MIDI effect project can be converted into a Schwung module.
 
-The goal is not to code immediately. The goal is to determine feasibility, conversion strategy, risks, and the cleanest architecture.
+The goal is not to code immediately.
+The goal is to determine feasibility, conversion strategy, risks, and the cleanest architecture.
 
 ## Inputs
 You may receive:
-- a GitHub repo or URL
-- source files or a README
-- a plugin project (JUCE, Max, Pure Data, Eurorack firmware)
-- a ChatGPT spec or design description
-- an informal description of desired behavior
+- a GitHub repo
+- source files
+- a README
+- a plugin project
+- a Max device
+- a JUCE plugin
+- a small standalone MIDI processor
+- a shared ChatGPT spec or design description
 
 ## Main Question
-
-**Can this become a clean Schwung MIDI FX module with reasonable effort?**
-
-Answer: what the original does, what gets converted vs dropped, how it maps to Move, what the risks are.
-
----
+Can this project be converted into a clean Schwung MIDI FX module with acceptable effort and acceptable behavior on Move?
 
 ## Audit Process
 
-### Step 1 — Product Classification
+### 1. Identify the Real Product Type
+Classify the source project as one of:
+- MIDI FX
+- instrument
+- audio FX
+- sequencer
+- controller utility
+- hybrid plugin
 
-Categorize the source project:
-- MIDI FX (note transform, arpeggio, quantizer, chord generator…)
-- Instrument / sound generator → cannot be a `midi_fx`
-- Audio FX → cannot be a `midi_fx`
-- Sequencer or step editor
-- Controller utility
-- Hybrid — identify which portion is worth porting
+If it is not primarily a MIDI FX, explain whether only part of it should be ported.
 
-### Step 2 — Locate the Musical Core
+### 2. Identify the Runtime Core
+Find the actual MIDI transformation logic:
+- note in -> note out
+- chord expansion
+- arp sequencing
+- scale quantization
+- timing generation
+- CC generation
+- note filtering
+- velocity remapping
+- randomization / humanization
+- transposition / harmonization
 
-Isolate the actual MIDI transformation or generation logic from:
-- Plugin wrapper code (VST, AU, Max, JUCE host glue)
-- GUI / UI code
-- Preset management
-- Platform-specific utilities
+Distinguish core logic from:
+- UI
+- plugin wrapper
+- DAW glue
+- preset browser
+- platform-specific code
 
-Identify what the core does: note transformation, sequencing, quantization, velocity remapping, arpeggiation, probability, timing…
-
-### Step 3 — Evaluate Portability
-
-Classify the algorithmic core:
-
-| Class | Description |
-|---|---|
-| **Trivially portable** | Pure stateless math or lookup — straightforward C translation |
-| **Moderately rewritable** | Clear logic with manageable dependencies — clean port with effort |
-| **Conceptually portable** | Intent is clear but implementation is too coupled — rewrite from behavior spec |
-| **Unsuitable** | Audio DSP, heavy threading, or platform-locked — not viable as `midi_fx` |
+### 3. Assess Portability
+Determine whether the source core is:
+- trivially portable
+- portable with moderate rewrite
+- only conceptually portable
+- poor fit for Schwung
 
 Assess:
-- Language and external dependencies
-- Timing model (block-based, event-based, sample-accurate?)
-- Threading assumptions
-- Memory allocation patterns
-- Clock synchronization approach
-- Filesystem or preset dependencies
+- language
+- dependencies
+- timing model
+- threading model
+- memory model
+- clock assumptions
+- host assumptions
+- MIDI API assumptions
 
-### Step 4 — Assess Schwung Fit
+### 4. Determine Schwung Architecture
+Choose one:
+- native MIDI FX with lightweight JS UI
+- native MIDI FX with chain-aware editing
+- JS-heavy module with no native engine
+- not recommended
 
-Evaluate against Schwung constraints:
-- MIDI only — no audio generation in a `midi_fx` slot
-- Move hardware UI — 8 knobs, pads, step buttons, transport
-- Chainable in the Signal Chain
-- Standard parameter system (`module.json`)
-- Native C engine (`dsp.so`) via the portable engine + host wrapper split
-- No filesystem access at runtime
+### 5. Define User-Facing Controls
+Extract the minimal parameter surface needed for Move.
 
-Flag immediately if:
-- Requires audio output → `midi_fx` not applicable
-- Floating-point-heavy DSP → ARM performance risk on Move
-- Persistent filesystem → must be redesigned as state-only recall
-- UI assumes a screen larger than Move's display
+For each parameter, define:
+- key
+- display name
+- type
+- range/options
+- default
+- step size if numeric
 
-### Step 5 — Propose the Architecture
+Do not blindly port every original control.
+Prefer a compact Move-friendly control surface.
 
-Decide:
-- **Engine split needed?** Two-layer split (portable engine + host wrapper) when timing or testability matters. Single file for simple transforms.
-- **Parameters that survive translation** — keep only what makes sense on Move
-- **Clock strategy** — Move transport sync, internal BPM, or free-running (no clock API calls)
-- **Note lifecycle model** — how notes are tracked and closed safely
-
-### Step 6 — Define the Move UX
-
-Even at audit stage, sketch how this module would feel on Move hardware:
-- **Knob map (1–8)** — which parameters get direct knob access
-- **Shift layer** — any secondary controls worth the added complexity
-- **Pads / step buttons** — only if they add clear musical value
-- **LEDs** — what state they would communicate
-- **Menus** — how deep the parameter hierarchy needs to go
-
-Keep it minimal. V1 should be navigable without reading a manual.
-
-### Step 7 — Risk Assessment
-
-List concisely:
-- Licensing risk (check license vs. project intent — flag uncertainty)
-- Algorithmic complexity risk
-- Timing / jitter risk
-- Stuck note risk
-- Behavioral drift (what will sound different from the original)
-- Scope creep risk (too many features for V1)
-
-### Step 8 — Decision
-
-Conclude with a clear feasibility rating:
-
-| Rating | Meaning |
-|---|---|
-| **Strong fit** | Clean port, minimal risk, natural Schwung module |
-| **Good fit** | Feasible with deliberate scope reduction |
-| **Partial fit** | Only a portion is worth porting; the rest is dropped |
-| **Poor fit** | Fundamental mismatch — not recommended |
-
-State: copy/adapt algorithm vs. reimplement from behavior description, and what goes in V1.
-
----
+### 6. Define Risks
+Look for:
+- excessive complexity
+- heavy external dependencies
+- poor timing determinism
+- DAW-only assumptions
+- UI that cannot translate to Move
+- polyphony edge cases
+- sustain / note-off bugs
+- state restore complexity
+- external sync assumptions
 
 ## Required Output Format
 
-### Summary
-One paragraph: what the original does, what the Schwung version would do.
-
 ### Feasibility
-`Strong fit` / `Good fit` / `Partial fit` / `Poor fit` — explain why.
+One of:
+- Strong fit
+- Good fit
+- Partial fit
+- Poor fit
 
 ### Source Summary
-- Name, license, language
-- Core behavior
-- Dependencies
-- Host assumptions
+- Name:
+- License:
+- Language:
+- Core behavior:
+- Dependencies:
+- Host assumptions:
 
 ### Conversion Strategy
-Four columns: **keep** / **rewrite** / **discard** / **simplify**
+- Keep:
+- Rewrite:
+- Discard:
+- Simplify:
 
-### Portability Class
-`Trivially portable` / `Moderately rewritable` / `Conceptually portable` / `Unsuitable`
+### Schwung Target Shape
+- Module type:
+- Native engine:
+- UI files:
+- Chain integration:
+- State persistence:
 
-With rationale.
-
-### Proposed Architecture
-Engine split decision, clock strategy, note lifecycle model, parameter list.
+### Parameter Proposal
+List the final proposed parameter set.
 
 ### Move UX Proposal
-Knob map, shift layer, pad/step usage, LED plan, menu depth.
+Describe:
+- knob mapping
+- shift layers
+- any pad usage
+- any step button usage
+- LED feedback
 
-### Risk List
-Concise bullets: licensing, algorithmic, timing, stuck notes, behavioral drift.
+### Risks
+List concrete technical risks.
 
-### Recommended Next Step
-`design-module` → `create-module-json` → `create-dsp-c` → `create-host-wrapper`
-
----
+### Recommendation
+Answer clearly:
+- Should we port this?
+- Should we port a reduced version?
+- What should be the first implementation milestone?
 
 ## Guardrails
-- Do not start coding in this step.
-- Do not assume all features from the original must be preserved.
-- Do not propose audio synthesis inside a `midi_fx` module.
-- Flag licensing uncertainty clearly — do not assume permissive licensing.
-- Distinguish the musical engine from wrapper/UI code before judging portability.
-- Prefer "Partial fit with reduced scope" over "Not recommended" when the core is salvageable.
+- Do not confuse plugin wrapper code with the musical engine.
+- Do not promise a one-to-one port unless it is realistic.
+- Prefer a smaller stable Schwung version over an incomplete feature clone.
+- Be explicit when you are inferring behavior from incomplete source material.

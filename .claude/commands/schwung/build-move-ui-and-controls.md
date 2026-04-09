@@ -13,168 +13,235 @@ This includes:
 - optional `ui_chain.js`
 
 ## Goal
-Make the module feel native on Move. The user should understand and control the module quickly with minimal cognitive load.
-
----
+Make the module feel native on Move.
+The user should be able to understand and control the module quickly with minimal cognitive load.
 
 ## UI Design Principles
+- Keep the first screen simple.
+- Put the most important parameters on direct knobs.
+- Use Shift only when it meaningfully improves control density.
+- Use pads or steps only if they genuinely improve musical interaction.
+- Prefer stable visual conventions over novelty.
+- Reuse shared helpers and patterns from the repo.
 
-**Keep the first screen simple.** Put the most important parameters on direct knobs. Shift is for secondary adjustments, not for hiding critical features.
+## Hardware Reference
 
-**Prefer standard UI when possible.** A well-designed `module.json` with good knob assignment often eliminates the need for custom `ui.js`. Only build a custom UI when Move's native parameter browser genuinely cannot express the interaction.
+### Move MIDI Mapping
 
-**LEDs should convey state, not create noise.** One clear signal is worth more than ten blinking patterns.
+**Pads:** Notes 68–99 (32 pads, bottom-left to top-right, 4 rows of 8)
+**Step buttons:** Notes 16–31
+**Knob touch (capacitive):** Notes 0–9 — filter with `if (data[1] < 10) return;` unless `raw_midi` is set
 
-**Pads and step buttons only if they add musical value.** Don't use them because they're there — use them when the interaction is immediate and obvious.
+| CC  | Control            | Notes                                |
+|-----|--------------------|--------------------------------------|
+| 3   | Jog wheel click    | 127 = pressed                        |
+| 14  | Jog wheel rotate   | 1–63 = CW, 65–127 = CCW             |
+| 40–43 | Track buttons   | CC43=Track1, CC40=Track4 (reversed)  |
+| 49  | Shift              | 127 = held                           |
+| 50  | Menu               |                                      |
+| 51  | Back               |                                      |
+| 54  | Down arrow         |                                      |
+| 55  | Up arrow           |                                      |
+| 62  | Left arrow         |                                      |
+| 63  | Right arrow        |                                      |
+| 71–78 | Knobs 1–8       | Relative (1–63 CW, 65–127 CCW)       |
+| 79  | Master volume      | Relative encoder                     |
+| 85  | Play               |                                      |
+| 86  | Record             |                                      |
+| 118 | Record button LED  | Use Note for input                   |
+| 119 | Delete             |                                      |
 
-**Prefer clear macro/fine pairs over long flat parameter lists.** Generative modules often become easier to learn when paired controls each own one job:
-- `range` + `spread`
-- `density` + `rest`
-- `chaos` + `resolve`
+### Display API (128×64, 1-bit monochrome)
 
----
+```javascript
+clear_screen()                    // Clear to black
+print(x, y, text, color)          // color: 0=black, 1=white
+set_pixel(x, y, value)
+draw_rect(x, y, w, h, value)
+fill_rect(x, y, w, h, value)
+text_width(text)                   // Returns pixel width
 
-## Typical Knob Candidates (ordered by priority)
-
-Direct knob access (no shift) — most important live controls:
-- Primary amount, rate, or intensity
-- Mode or character selector (enum)
-- Musical timing (rate, division, tempo)
-- Output target (note, channel, range)
-
-For generative note modules, a strong default ordering is often:
-- harmonic identity first (`root`, `scale`)
-- register second (`range`, `spread`)
-- phrase amount third (`density`)
-- behavior next (`chaos`, `resolve`, `rest`)
-- setup params (`steps`, `gate`, `vel`) in the full param list unless they are central to performance
-
-Shift layer — secondary adjustments:
-- Fine-tuning of primary controls
-- Reset or randomize shortcuts
-- Alternate mode or sub-parameter
-
----
-
-## Design Process
-
-### Step 1 — Audit the Parameter Surface
-Read `src/module.json` — knobs list, params list, chain_params. Identify:
-- Which parameters are musically critical (direct knob)
-- Which are setup parameters (menu or shift)
-- Which are too dangerous to expose in chain context
-- Which parameter pairs are likely to be tweaked together in live use
-
-### Step 2 — Define the Knob Map
-
-| Knob | Parameter | Shift (if any) |
-|---|---|---|
-| 1 | most important | — |
-| 2 | second most important | — |
-| … | … | … |
-| 8 | least frequent | — |
-
-Maximum 8 direct knobs. Be ruthless — fewer is better for V1.
-
-If there are more than 8 meaningful params:
-- keep exploratory controls on the live knobs
-- move setup controls to the full param list
-- do not hide a constantly-used musical control behind shift
-
-### Step 3 — Define Shift Behavior
-Only add shift behavior when it genuinely improves usability. Each shift+knob pair should be immediately intuitive. Do not use shift to compensate for a parameter surface that is too large.
-
-### Step 4 — Define Pad and Step Button Behavior (if any)
-Pads work well for: mode toggles, mute/solo per lane, pattern selection.
-Step buttons work well for: step toggles, value presets, shortcut navigation.
-
-If pads and step buttons have no clear role, leave them unused. Do not invent interactions.
-
-### Step 5 — Define LED Behavior
-LEDs should reflect: active state, current mode, transport running/stopped, active lane.
-
-Avoid: rapid flickering, decorative patterns, information overload.
-
-### Step 6 — Decide: Standard UI or Custom `ui.js`
-
-Use standard Schwung parameter UI (`module.json` only) when:
-- The parameter surface is compact and well-ordered
-- No custom visual feedback is needed
-- No pad or step button interaction is required
-
-Build custom `ui.js` only when:
-- Move's native browser cannot express the required interaction
-- Step-based editing is central to the module's use
-- Pad interaction has clear musical value
-- A visual display (active step, loop position, etc.) adds real usability
-
-If custom `ui.js` is not justified, return `OMIT_UI_JS`.
-
-### Step 7 — Decide: Chain UI or Not
-
-Build `ui_chain.js` when:
-- Chain-context editing needs a tighter, more focused surface than the full UI
-- Only 2–4 params matter during chain navigation
-
-If no custom chain UI is justified, return `OMIT_UI_CHAIN_JS`.
-
----
-
-## Engine Warning Display Pattern
-
-If the module depends on a user setting (e.g. "MIDI Clock Out" for transport sync), expose feedback via a virtual `get_param` key:
-
-```c
-if (strcmp(key, "sync_warn") == 0) {
-    if (inst->sync_mode == SYNC_MOVE && g_host && g_host->get_clock_status) {
-        int status = g_host->get_clock_status();
-        if (status == MOVE_CLOCK_STATUS_UNAVAILABLE)
-            return snprintf(buf, buf_len, "Enable MIDI Clock Out");
-        if (status == MOVE_CLOCK_STATUS_STOPPED)
-            return snprintf(buf, buf_len, "stopped");
-    }
-    return snprintf(buf, buf_len, "");
-}
+// Object-oriented alternative:
+display.clear()
+display.drawText(x, y, text, color)
+display.fillRect(x, y, w, h, value)
+display.drawRect(x, y, w, h, value)
+display.drawLine(x1, y1, x2, y2, value)
+display.flush()
 ```
 
-The UI can poll `sync_warn` and display it with a `!` prefix when non-empty. This surfaces configuration problems without hidden failures.
+### MIDI Send
 
----
+```javascript
+// To external USB-A port:
+move_midi_external_send([cable, status, data1, data2])
+
+// To internal Move hardware (LEDs):
+move_midi_internal_send([0x09, status, note, velocity])  // Note (LED)
+move_midi_internal_send([0x0b, status, cc, value])       // CC (LED)
+```
+
+### LED Colors (from `constants.mjs`)
+
+```javascript
+const Black = 0;        const White = 120;     const LightGrey = 118;
+const Red = 127;        const Blue = 125;      const BrightGreen = 8;
+const BrightRed = 1;
+```
+Full palette: see `src/shared/constants.mjs`.
+
+### LED Buffer Constraint
+The hardware mailbox holds ~64 USB-MIDI packets. Sending more than ~60 LED commands per frame causes buffer overflow. Use progressive LED init:
+
+```javascript
+const LEDS_PER_FRAME = 8;
+let ledInitIndex = 0;
+let ledInitPending = true;
+
+globalThis.tick = function() {
+    if (ledInitPending) {
+        const leds = [...]; // all LEDs to set
+        const end = Math.min(ledInitIndex + LEDS_PER_FRAME, leds.length);
+        for (let i = ledInitIndex; i < end; i++) setLED(leds[i].note, leds[i].color);
+        ledInitIndex = end;
+        if (ledInitIndex >= leds.length) ledInitPending = false;
+    }
+    drawUI();
+};
+```
+
+### Host Functions Available in UI
+
+```javascript
+host_module_get_param(key)         // Get DSP parameter as string
+host_module_set_param(key, val)    // Set DSP parameter
+host_module_get_error()            // Get last module error message
+host_module_send_midi(msg, source) // Inject MIDI into DSP (source: "internal"/"external"/"host")
+host_is_module_loaded()            // Returns bool
+host_get_volume()                  // 0–100
+host_set_volume(vol)
+host_get_setting(key)              // 'velocity_curve', 'aftertouch_enabled', 'aftertouch_deadzone'
+host_return_to_menu()              // Exit to host menu
+host_rescan_modules()              // Rescan modules directory
+```
+
+### Capability Flags Affecting UI Behavior
+
+| Flag in `module.json` | Effect |
+|-----------------------|--------|
+| `"raw_midi": true` | Host skips MIDI transforms (velocity curve, aftertouch, knob-touch filter) |
+| `"raw_ui": true` | Host won't intercept Back to return to menu; module must call `host_return_to_menu()` |
+| `"claims_master_knob": true` | CC 79 (volume knob) routes to module instead of host volume |
+| `"skip_led_clear": true` | Host skips LED clear on load/unload |
+
+### Shared Helpers
+
+```javascript
+import { decodeDelta, decodeAcceleratedDelta, setLED, setButtonLED, clearAllLEDs }
+    from '../../shared/input_filter.mjs';
+import { MoveMainKnob, MoveShift, MoveMenu, MovePad1, MovePad32, MidiNoteOn, MidiCC }
+    from '../../shared/constants.mjs';
+```
+
+## Hardware Awareness
+Assume Move controls include:
+- 8 relative encoders (knobs 1–8, CC 71–78)
+- 32 pads (notes 68–99)
+- 16 step buttons (notes 16–31)
+- menu/back/shift buttons
+- jog wheel (CC 14) + jog click (CC 3)
+- LEDs on pads, steps, and buttons
+
+Treat hardware noise and non-musical internal messages carefully.
+Filter knob-touch notes (0–9) unless the module genuinely needs them.
+
+## UI Design Process
+
+### 1. Identify Core Controls
+Choose the primary controls that deserve direct knob access.
+
+Typical direct controls:
+- mode
+- rate/division
+- range
+- gate
+- amount
+- probability
+- min/max
+- channel
+- scale
+- transpose
+
+### 2. Define Shift Layer
+Use shift for:
+- secondary value adjustment
+- alternate interpretation
+- quick reset
+- fine/coarse resolution
+- hidden but useful performance options
+
+Do not hide critical functionality behind Shift unless necessary.
+
+### 3. Define Pads / Step Buttons
+Use them only if they add immediate value, such as:
+- mode selection
+- scale selection
+- lane enable/disable
+- step toggles
+- octave selection
+- chord slot recall
+
+Otherwise leave them unused or decorative.
+
+### 4. Define LED Behavior
+Specify:
+- status indication
+- active mode indication
+- selection feedback
+- error/warning state
+- timing or pulse feedback only if it helps
+
+Avoid LED spam.
+LEDs should communicate state, not create noise.
+
+### 5. Chain UI Strategy
+If a chain UI is needed:
+- expose only the most important controls
+- keep chain editing compact
+- avoid interactions that depend on a full-screen module context unless clearly supported
 
 ## Required Output Format
 
 ### Interaction Summary
-One paragraph: how the user controls the module on Move.
+Describe how the user operates the module on Move.
 
-### Knob Map (1–8)
-Table: knob number / parameter / shift behavior.
+### Knob Map
+List knob 1 through knob 8.
 
 ### Shift Layer
-List of shift+knob combinations, or "none".
+List all shift-modified actions.
 
 ### Pad Map
-List of pad assignments, or "unused".
+If pads are used, define each zone or behavior.
 
 ### Step Button Map
-List of step button assignments, or "unused".
+If steps are used, define their meanings.
 
 ### LED Plan
-What each LED or LED group communicates.
+Describe all visual feedback.
 
-### UI File Decision
-- Standard UI only (`OMIT_UI_JS`, `OMIT_UI_CHAIN_JS`) — with rationale
-- OR: which files to create and why each is justified
+### Files
+Specify whether to create:
+- `ui.js`
+- `ui_chain.js`
+- neither
 
 ### Implementation Notes
-Any non-obvious patterns, warning displays, or edge cases in the interaction model.
-
----
+Provide concrete notes for coding.
 
 ## Guardrails
-- Do not build `ui.js` just to have one. Standard UI is the right default.
-- Do not use pads or step buttons without a clear musical reason.
-- Do not add shift behaviors to hide an oversized parameter surface — reduce the surface instead.
-- Do not let LED behavior distract from the music.
-- Always align control keys with the exact keys in `module.json` and the engine.
-- Keep V1 UI deliberately simple. Complexity can be added later.
-- For generative modules, do not expose too many overlapping "probability" knobs — users should hear what each knob owns.
+- Do not create a UI that requires memorizing too many hidden states.
+- Do not use pads just because they are available.
+- Do not overload LEDs with decorative behavior.
+- Keep chain UI smaller and more focused than full UI.
+- Prefer consistency with existing modules over experimental interaction design.
