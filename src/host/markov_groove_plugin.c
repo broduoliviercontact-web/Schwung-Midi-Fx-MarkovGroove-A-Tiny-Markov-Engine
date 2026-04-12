@@ -342,6 +342,57 @@ static void set_param(void *instance, const char *key, const char *val)
 
     } else if (strcmp(key, "vel") == 0) {
         mg_engine_set_vel(&inst->engine, parse_scaled_int_param(val, 20, 127));
+
+    } else if (strcmp(key, "state") == 0) {
+        /* Parse JSON state string: {"root":"0","steps":"16",...} */
+        const char *p = val;
+        while (*p) {
+            /* Find next key: skip to opening quote */
+            const char *kstart = strchr(p, '"');
+            if (!kstart) break;
+            kstart++;
+            const char *kend = strchr(kstart, '"');
+            if (!kend) break;
+
+            /* Extract key */
+            char k[64];
+            int klen = (int)(kend - kstart);
+            if (klen <= 0 || klen >= (int)sizeof(k)) { p = kend + 1; continue; }
+            memcpy(k, kstart, (size_t)klen);
+            k[klen] = '\0';
+
+            /* Skip to colon, then to value */
+            const char *colon = strchr(kend + 1, ':');
+            if (!colon) break;
+            p = colon + 1;
+            while (*p == ' ' || *p == '\t') p++;
+
+            char v[256];
+            if (*p == '"') {
+                /* String value */
+                p++;
+                const char *vend = strchr(p, '"');
+                if (!vend) break;
+                int vlen = (int)(vend - p);
+                if (vlen >= (int)sizeof(v)) vlen = (int)sizeof(v) - 1;
+                memcpy(v, p, (size_t)vlen);
+                v[vlen] = '\0';
+                p = vend + 1;
+            } else {
+                /* Numeric value */
+                const char *vstart = p;
+                while (*p && *p != ',' && *p != '}' && *p != ' ') p++;
+                int vlen = (int)(p - vstart);
+                if (vlen >= (int)sizeof(v)) vlen = (int)sizeof(v) - 1;
+                memcpy(v, vstart, (size_t)vlen);
+                v[vlen] = '\0';
+            }
+
+            /* Skip "state" key itself to avoid recursion */
+            if (strcmp(k, "state") != 0) {
+                set_param(instance, k, v);
+            }
+        }
     }
 }
 
@@ -413,6 +464,48 @@ static int get_param(void *instance, const char *key, char *buf, int buf_len)
 
     if (strcmp(key, "sync_warn") == 0)
         return snprintf(buf, (size_t)buf_len, "ok");
+
+    if (strcmp(key, "state") == 0) {
+        static const char *steps_names[] = {"4", "8", "16"};
+        static const char *scale_names[] = {
+            "ionian", "aeolian", "dorian", "mixolydian",
+            "major_pent", "minor_pent", "suspended", "power",
+            "phrygian", "lydian", "harmonic_minor", "blues"
+        };
+        static const char *range_names[] = {"close", "octave", "wide"};
+        int steps_idx = mg_engine_get_steps_idx(&inst->engine);
+        int scale_idx = mg_engine_get_scale(&inst->engine);
+        int range_idx = mg_engine_get_range(&inst->engine);
+        if (steps_idx < 0 || steps_idx > 2) steps_idx = 2;
+        if (scale_idx < 0 || scale_idx >= MG_NUM_SCALES) scale_idx = MG_SCALE_IONIAN;
+        if (range_idx < 0 || range_idx >= MG_NUM_RANGES) range_idx = MG_RANGE_CLOSE;
+
+        return snprintf(buf, (size_t)buf_len,
+            "{\"root\":\"%d\","
+            "\"steps\":\"%s\","
+            "\"scale\":\"%s\","
+            "\"range\":\"%s\","
+            "\"spread\":\"%.4f\","
+            "\"density\":\"%.4f\","
+            "\"chaos\":\"%.4f\","
+            "\"rest\":\"%.4f\","
+            "\"resolve\":\"%.4f\","
+            "\"swing\":\"%.4f\","
+            "\"gate\":\"%.4f\","
+            "\"vel\":\"%d\"}",
+            mg_engine_get_root(&inst->engine),
+            steps_names[steps_idx],
+            scale_names[scale_idx],
+            range_names[range_idx],
+            mg_engine_get_spread(&inst->engine),
+            mg_engine_get_density(&inst->engine),
+            mg_engine_get_chaos(&inst->engine),
+            mg_engine_get_rest(&inst->engine),
+            mg_engine_get_resolve(&inst->engine),
+            mg_engine_get_swing(&inst->engine),
+            mg_engine_get_gate(&inst->engine),
+            mg_engine_get_vel(&inst->engine));
+    }
 
     return -1;
 }
@@ -494,8 +587,6 @@ static midi_fx_api_v1_t g_api = {
     .tick             = tick,
     .set_param        = set_param,
     .get_param        = get_param,
-    .save_state       = save_state,
-    .load_state       = load_state,
 };
 
 midi_fx_api_v1_t *move_midi_fx_init(const host_api_v1_t *host)
